@@ -1,0 +1,757 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Chromagotchi Lab</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#fff;color:#25262d;font:16px system-ui,sans-serif}main{max-width:860px;margin:auto;padding:clamp(16px,5vw,48px)}h1{color:#d80024;font-size:clamp(28px,6vw,52px);margin:16px 0;border-bottom:1px solid #e6e6ea;padding-bottom:16px}h2,p{margin:8px 0 18px}button{font:inherit;cursor:pointer;border:1px solid #ddd;border-radius:10px;padding:12px;background:#f6f6f8;color:inherit}button:hover{filter:brightness(.93)}button:disabled{cursor:wait;opacity:.55}button:focus-visible{outline:3px solid #e84b62;outline-offset:3px}.menu,.actions,.bench{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.menu button{text-align:left;border-left:5px solid #d80024;min-height:90px;padding:16px}.menu strong{display:block;font-size:21px}.menu span{float:right;color:#565865}.game{background:#101529;color:#f7f7ff;border-radius:16px;padding:clamp(14px,4vw,30px)}.game h2{color:var(--accent)}.game button{background:#222d49;border-color:#445371;color:white}.game .run{background:#2255aa}.game p{color:#ffce66}.game header{display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;gap:8px}.screen{width:100%;height:auto;border-radius:10px;background:#192644}.stat{margin-bottom:7px}.stat label{display:flex;justify-content:space-between;font-size:14px}progress{appearance:none;width:100%;height:6px;display:block;margin-top:4px;accent-color:var(--accent)}progress::-webkit-progress-bar{background:#303d56;border-radius:6px}progress::-webkit-progress-value{background:var(--accent);border-radius:6px}.actions{grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}.actions small{display:block;color:#d9e2ff}@media(max-width:510px){.bench{grid-template-columns:1fr}.screen{max-height:190px;object-fit:contain}.actions{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+<main><h1>Chromagotchi Lab</h1><section id="menu"><p>Choose your bench companion.</p><div class="menu"></div></section>
+<section class="game" hidden><header><h2></h2><span id="record"></span></header><div class="bench"><canvas class="screen" width="270" height="260" aria-label="Instrument mascot and acquisition trace"></canvas><div id="stats"></div></div><p id="message" role="status"></p><div class="actions"></div></section></main>
+<script>
+const labs = [
+  {
+    "name": "Chroma",
+    "kind": "HPLC",
+    "color": "#73da62",
+    "labels": [
+      "Solvent",
+      "Cleanliness",
+      "Column"
+    ],
+    "actions": [
+      [
+        "REFILL",
+        0,
+        -1,
+        0,
+        [
+          35
+        ],
+        0,
+        "Fresh mobile phase!"
+      ],
+      [
+        "FLUSH",
+        0,
+        0,
+        15,
+        [
+          -15,
+          35
+        ],
+        0,
+        "Flow path flushed."
+      ],
+      [
+        "COLUMN",
+        10,
+        -1,
+        0,
+        [
+          0,
+          0,
+          40
+        ],
+        0,
+        "Column serviced."
+      ]
+    ],
+    "wear": [
+      12,
+      8,
+      5
+    ],
+    "floor": [
+      20,
+      20,
+      20
+    ]
+  },
+  {
+    "name": "Ember",
+    "kind": "GC",
+    "color": "#ffa531",
+    "labels": [
+      "Carrier gas",
+      "Inlet",
+      "Column",
+      "Detector",
+      "Seal"
+    ],
+    "actions": [
+      [
+        "GAS",
+        0,
+        -1,
+        0,
+        [
+          45
+        ],
+        0,
+        "Carrier gas refreshed."
+      ],
+      [
+        "INLET",
+        8,
+        -1,
+        0,
+        [
+          0,
+          45,
+          0,
+          0,
+          15
+        ],
+        0,
+        "Liner and septum renewed."
+      ],
+      [
+        "BAKE OUT",
+        0,
+        0,
+        15,
+        [
+          -15,
+          0,
+          45,
+          0,
+          0,
+          0,
+          -15
+        ],
+        0,
+        "Column baked out."
+      ],
+      [
+        "DETECTOR",
+        8,
+        -1,
+        0,
+        [
+          0,
+          0,
+          0,
+          45
+        ],
+        0,
+        "Detector cleaned."
+      ],
+      [
+        "LEAK CHECK",
+        0,
+        -1,
+        0,
+        [
+          0,
+          0,
+          0,
+          0,
+          100
+        ],
+        0,
+        "Connections sealed."
+      ]
+    ],
+    "wear": [
+      10,
+      9,
+      8,
+      6,
+      4
+    ],
+    "floor": [
+      20,
+      20,
+      20,
+      20,
+      20
+    ]
+  },
+  {
+    "name": "Lumi",
+    "kind": "UV",
+    "color": "#b479ff",
+    "labels": [
+      "Lamp health",
+      "Cuvette",
+      "Blank",
+      "Calibration",
+      "Stability"
+    ],
+    "actions": [
+      [
+        "CUVETTE",
+        0,
+        -1,
+        0,
+        [
+          0,
+          100
+        ],
+        4,
+        "Cuvette clean. Reblank."
+      ],
+      [
+        "BLANK",
+        0,
+        4,
+        50,
+        [
+          0,
+          0,
+          100,
+          0,
+          0,
+          0,
+          -5
+        ],
+        0,
+        "Baseline zeroed."
+      ],
+      [
+        "CALIBRATE",
+        8,
+        4,
+        50,
+        [
+          0,
+          0,
+          0,
+          100
+        ],
+        4,
+        "Calibration checked. Reblank."
+      ],
+      [
+        "UV LAMP",
+        15,
+        -1,
+        0,
+        [
+          100
+        ],
+        20,
+        "New lamp. Warm up and blank."
+      ],
+      [
+        "WARM UP",
+        0,
+        6,
+        10,
+        [
+          -1,
+          0,
+          0,
+          0,
+          100,
+          0,
+          -10
+        ],
+        0,
+        "Lamp stable."
+      ]
+    ],
+    "wear": [
+      4,
+      12,
+      15,
+      4,
+      0
+    ],
+    "floor": [
+      20,
+      20,
+      20,
+      20,
+      50
+    ]
+  },
+  {
+    "name": "Fourier",
+    "kind": "FTIR",
+    "color": "#5ad6e6",
+    "labels": [
+      "ATR crystal",
+      "Background",
+      "Dryness",
+      "Alignment",
+      "Contact"
+    ],
+    "actions": [
+      [
+        "CRYSTAL",
+        0,
+        -1,
+        0,
+        [
+          100
+        ],
+        18,
+        "Crystal clean. Background next."
+      ],
+      [
+        "BACKGROUND",
+        0,
+        0,
+        70,
+        [
+          0,
+          100,
+          0,
+          0,
+          0,
+          0,
+          -5
+        ],
+        0,
+        "Background collected."
+      ],
+      [
+        "DESICCANT",
+        8,
+        -1,
+        0,
+        [
+          0,
+          0,
+          100
+        ],
+        2,
+        "Optics dry. Recheck background."
+      ],
+      [
+        "ALIGN",
+        0,
+        6,
+        10,
+        [
+          0,
+          0,
+          0,
+          100,
+          0,
+          0,
+          -10
+        ],
+        2,
+        "Aligned. Recheck background."
+      ],
+      [
+        "CONTACT",
+        0,
+        1,
+        20,
+        [
+          0,
+          0,
+          0,
+          0,
+          100
+        ],
+        0,
+        "Sample seated on ATR crystal."
+      ]
+    ],
+    "wear": [
+      15,
+      12,
+      0,
+      3,
+      100
+    ],
+    "floor": [
+      20,
+      20,
+      20,
+      20,
+      20
+    ]
+  },
+  {
+    "name": "Coco",
+    "kind": "TOC",
+    "color": "#ff9194",
+    "labels": [
+      "Rinse water",
+      "Carrier gas",
+      "Flow path",
+      "Blank",
+      "Catalyst",
+      "Calibration"
+    ],
+    "actions": [
+      [
+        "SUPPLIES",
+        0,
+        -1,
+        0,
+        [
+          100,
+          100
+        ],
+        0,
+        "Water and gas replenished."
+      ],
+      [
+        "RINSE",
+        0,
+        0,
+        15,
+        [
+          -15,
+          0,
+          100,
+          0,
+          0,
+          0,
+          -5
+        ],
+        8,
+        "Rinsed. Check blank next."
+      ],
+      [
+        "BLANK",
+        0,
+        2,
+        50,
+        [
+          -10,
+          -10,
+          0,
+          100,
+          0,
+          0,
+          -5
+        ],
+        0,
+        "Blank checked."
+      ],
+      [
+        "CATALYST",
+        12,
+        -1,
+        0,
+        [
+          0,
+          0,
+          0,
+          0,
+          100
+        ],
+        40,
+        "Catalyst serviced. Blank next."
+      ],
+      [
+        "STANDARD",
+        8,
+        3,
+        20,
+        [
+          -10,
+          -10,
+          -5,
+          0,
+          0,
+          100,
+          -5
+        ],
+        0,
+        "Standard measured."
+      ]
+    ],
+    "wear": [
+      10,
+      12,
+      14,
+      12,
+      6,
+      5
+    ],
+    "floor": [
+      20,
+      20,
+      20,
+      20,
+      20,
+      20
+    ]
+  },
+  {
+    "name": "Quark",
+    "kind": "Q-TOF",
+    "color": "#5299ff",
+    "labels": [
+      "Gas",
+      "Ion source",
+      "Vacuum",
+      "Ion tune",
+      "Mass cal."
+    ],
+    "actions": [
+      [
+        "GASES",
+        0,
+        -1,
+        0,
+        [
+          100
+        ],
+        0,
+        "Source and collision gas full."
+      ],
+      [
+        "SOURCE",
+        8,
+        -1,
+        0,
+        [
+          0,
+          100
+        ],
+        24,
+        "Source clean. Tune and calibrate."
+      ],
+      [
+        "VACUUM",
+        0,
+        6,
+        10,
+        [
+          0,
+          0,
+          100,
+          0,
+          0,
+          0,
+          -10
+        ],
+        0,
+        "Vacuum ready."
+      ],
+      [
+        "AUTO-TUNE",
+        0,
+        2,
+        50,
+        [
+          -5,
+          0,
+          0,
+          100,
+          0,
+          0,
+          -10
+        ],
+        16,
+        "Tuned. Mass calibration next."
+      ],
+      [
+        "MASS CAL",
+        10,
+        3,
+        50,
+        [
+          -5,
+          0,
+          0,
+          0,
+          100,
+          0,
+          -10
+        ],
+        0,
+        "Reference masses matched."
+      ]
+    ],
+    "wear": [
+      12,
+      12,
+      3,
+      5,
+      8
+    ],
+    "floor": [
+      20,
+      40,
+      50,
+      20,
+      20
+    ]
+  }
+];
+const ENERGY = 6, HAPPY = 7;
+const key = 'chromagotchi-lab-v1';
+const clamp = n => Math.max(0, Math.min(100, n));
+const fresh = labs.map((_, i) => ({
+  score:[90,90,85,90,i === 3 ? 0 : 90,90,90,85], credits:30, runs:0, quality:0, sleep:false
+}));
+let pets = fresh;
+try {
+  const saved = JSON.parse(localStorage.getItem(key));
+  if (Array.isArray(saved)) pets = fresh.map((pet,i) => {
+    const p = saved[i];
+    return p && p.score?.length === 8 && p.score.every(Number.isFinite)
+      && [p.credits,p.runs,p.quality].every(Number.isFinite) ? p : pet;
+  });
+} catch {}
+function save() {
+  try { localStorage.setItem(key, JSON.stringify(pets)); } catch {}
+}
+const menu = document.querySelector('#menu'), game = document.querySelector('.game');
+const actions = game.querySelector('.actions'), stats = document.querySelector('#stats');
+const ctx = document.querySelector('canvas').getContext('2d');
+let active = -1, run = null;
+function button(title, callback) {
+  const b = document.createElement('button');
+  b.textContent = title;
+  b.onclick = callback;
+  return b;
+}
+function showMenu() {
+  active = -1;
+  game.hidden = true;
+  menu.hidden = false;
+  menu.querySelector('.menu').replaceChildren(...labs.map((lab,i) => {
+    const b = button('', () => openLab(i));
+    b.innerHTML = '<strong>'+lab.kind+'</strong><span>LV '+level(pets[i])+'</span>'+lab.name;
+    return b;
+  }));
+}
+const level = p => 1 + Math.floor(p.runs/5);
+function openLab(i) {
+  active = i;
+  const lab = labs[i];
+  menu.hidden = true;
+  game.hidden = false;
+  game.style.setProperty('--accent',lab.color);
+  game.querySelector('h2').textContent = lab.name + ' · ' + lab.kind;
+  actions.replaceChildren(...lab.actions.map(([title,cost],j) => {
+    const b = button(title, () => care(j));
+    if (cost) { const price = document.createElement('small'); price.textContent = cost+' credits'; b.append(price); }
+    return b;
+  }), button('Run', startRun), button('', standby), button('Lab menu', showMenu));
+  actions.children[lab.actions.length].className = 'run';
+  announce('Ready for a little science.');
+  refresh();
+}
+function announce(text) { document.querySelector('#message').textContent = text; }
+function refresh() {
+  if (active < 0) return;
+  const {labels} = labs[active], p = pets[active];
+  document.querySelector('#record').textContent = 'LV '+level(p)+' · '+p.credits+' credits';
+  stats.replaceChildren(...[...labels, 'Energy', 'Happiness'].map((label,i) => {
+    const n = i < labels.length ? i : i === labels.length ? ENERGY : HAPPY;
+    const line = document.createElement('div');
+    line.className = 'stat';
+    line.innerHTML = '<label for="stat-'+n+'">'+label+'<span>'+p.score[n]+'%</span></label><progress id="stat-'+n+'" max="100" value="'+p.score[n]+'"></progress>';
+    return line;
+  }));
+  actions.children[labs[active].actions.length+1].textContent = p.sleep ? 'Wake' : 'Standby';
+  for (const b of actions.children) b.disabled = !!run;
+}
+function standby() {
+  const p = pets[active];
+  p.sleep = !p.sleep;
+  if (!p.sleep) {
+    if (active === 2) { p.score[2] = 0; p.score[4] = 10; }
+    if (active === 3) p.score[1] = 0;
+    if (active === 4) p.score[3] = 0;
+  }
+  announce(p.sleep ? 'Standby: recharging.' : 'Back to the bench.');
+  save(); refresh();
+}
+function care(i) {
+  const p = pets[active], s = p.score;
+  const [,cost,need,min,change,clear,done] = labs[active].actions[i];
+  if (p.sleep) return announce('Wake up first.');
+  if (p.credits < cost) return announce('Not enough credits.');
+  if (min && s[need] < min) return announce('Service prerequisite not met.');
+  if (active === 3 && (i === 1 || i === 3) && s[4] > 0) return announce('Clean crystal to remove sample.');
+  if (active === 4 && (i === 2 || i === 4) && (s[0]<10 || s[1]<10 || s[4]<20)) return announce('Check water, gas and catalyst.');
+  if (active === 5 && (i === 3 || i === 4) && (s[2]<50 || s[1]<40 || s[0]<10)) return announce('Check vacuum, source and gas.');
+  if (change.some((v,j) => s[j]+v < 0)) return announce('Not enough supplies or energy.');
+  p.credits -= cost;
+  for (let j=0;j<s.length;j++) s[j] = clear & (1<<j) ? 0 : clamp(s[j]+(change[j]||0));
+  if (active === 2 && i === 1) s[2] = Math.min(s[1],s[4]);
+  if (active === 3 && i === 1) s[1] = Math.min(s[0],s[2],s[3]);
+  if (active === 4 && i === 2) s[3] = Math.min(s[2],s[4]);
+  s[HAPPY] = clamp(s[HAPPY]+4);
+  announce(done); save(); refresh();
+}
+function startRun() {
+  const lab = labs[active], p = pets[active];
+  if (p.sleep) return announce('Wake up first.');
+  const bad = lab.floor.findIndex((v,i) => p.score[i] < v);
+  if (bad >= 0) return announce('Service needed: '+lab.labels[bad]+'.');
+  if (p.score[ENERGY] < 20) return announce('Low energy. Use standby.');
+  const quality = Math.max(1,Math.floor(lab.labels.reduce((sum,_,i) => sum+p.score[i],0)/lab.labels.length));
+  run = {started:performance.now(), quality};
+  announce('Acquiring…'); refresh();
+  setTimeout(() => {
+    lab.wear.forEach((wear,i) => p.score[i] = clamp(p.score[i]-wear));
+    p.score[ENERGY] = clamp(p.score[ENERGY]-15);
+    p.score[HAPPY] = clamp(p.score[HAPPY]+8);
+    p.runs++;
+    p.quality = quality;
+    p.credits += 12+Math.floor(quality/5);
+    run = null;
+    announce('Run complete. Credits earned!');
+    save(); refresh();
+  },6500);
+}
+setInterval(() => {
+  for (const p of pets) {
+    p.score[ENERGY] = clamp(p.score[ENERGY]+(p.sleep ? 6 : -1));
+    p.score[HAPPY] = clamp(p.score[HAPPY]-1);
+  }
+  save(); refresh();
+},60000);
+function peak(x,center,width) { return Math.exp(-(((x-center)/width)**2)); }
+function traceHeight(x,q) {
+  if (active < 2) return [0,1,2,3].reduce((sum,i) => sum+(9+4*i)*peak(x,20+30*i,3.1+i+.04*(100-q)),0);
+  if (active === 2) return 15*peak(x,33,15)+26*peak(x,87,20);
+  if (active === 3) return -Array.from({length:7},(_,i) => (11+3*(i%5))*peak(x,17+16*i,2+i%3)).reduce((a,b)=>a+b,0);
+  return 28*peak(x,64,13);
+}
+function draw(now) {
+  requestAnimationFrame(draw);
+  if (active < 0) return;
+  const lab = labs[active], p = pets[active], color = lab.color;
+  const rect = (x,y,w,h,fill) => { ctx.fillStyle=fill;ctx.fillRect(x,y,w,h); };
+  ctx.clearRect(0,0,270,260);
+  if (active === 0 || active === 4) {
+    for (let i=0;i<4;i++) { rect(68+36*i,34,24,40,color);rect(74+36*i,29,12,9,'#aab4c0'); }
+  } else if (active === 1) {
+    rect(53,25,30,53,'#aab4c0');rect(63,18,10,12,color);
+  } else if (active === 3) {
+    ctx.strokeStyle='#aab4c0';ctx.strokeRect(97,31,76,44);rect(130,36,9,38,color);
+  } else if (active === 5) {
+    rect(184,23,30,52,'#aab4c0');rect(191,30,16,43,color);
+  }
+  rect(39,72,192,103,'#aab4c0');rect(46,79,178,20,color);
+  ctx.fillStyle='#101529';ctx.font='bold 13px monospace';ctx.fillText(lab.name,55,94);
+  rect(75,111,120,48,'#101529');
+  const eye = p.sleep || now%4360>4200 ? 3 : 15;
+  rect(99,121,10,eye,color);rect(161,121,10,eye,color);rect(125,146,20,2,color);
+  rect(211,140,8,8,run ? '#ffce66' : color);
+  const base = active === 3 ? 196 : 240;
+  rect(13,base,244,1,'#8393b0');
+  const q = run ? run.quality : p.quality;
+  if (!q) return;
+  const end = run ? Math.max(0,Math.min(128,(now-run.started)*128/6500)) : 128;
+  if (active === 5) {
+    for(let i=0;i<10;i++) {
+      const x=10+12*i+i%3, h=6+(i*13)%24;
+      if(x<=end) rect(13+x*1.9,base-h*1.6,2,h*1.6,color);
+    }
+    return;
+  }
+  ctx.beginPath();ctx.strokeStyle=color;ctx.lineWidth=2;
+  ctx.moveTo(13,base-traceHeight(0,q)*1.6);
+  for(let x=1;x<=end;x++) ctx.lineTo(13+x*1.9,base-traceHeight(x,q)*1.6);
+  ctx.stroke();
+}
+showMenu();
+requestAnimationFrame(draw);
+</script>
